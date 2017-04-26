@@ -18,11 +18,13 @@ import org.json.JSONObject;
 public class InAppBilling extends CorddovaPlugin
 {
 	// The helper object
-    IabHelper mHelper;
+    private IabHelper mHelper;
     // Provides purchase notification while this app is running
-    IabBroadcastReceiver mBroadcastReceiver;
+    private IabBroadcastReceiver mBroadcastReceiver;
 
-    Inventory mInventory;
+    private Inventory mInventory;
+
+	private static final int RC_REQUEST = 10001;
 	
 	@Override
 	public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException
@@ -34,30 +36,22 @@ public class InAppBilling extends CorddovaPlugin
             case "refresh":
                 refresh(callbackContext);
                 break;
+			case "purchase":
+				purchase();
+				break;
+			case "consume":
+				consume();
+				break;
+			case "getPurchase":
+				getPurchase();
+				break;
 			default:
 				callbackContext.error("Invalid action");
 		}
 		
 		return false;
 	}
-	
-	@Override
-	public void onDestroy()
-	{
-		super.onDestroy();
-		
-        if (mBroadcastReceiver != null)
-		{
-            unregisterReceiver(mBroadcastReceiver);
-        }
 
-        if (mHelper != null)
-		{
-            mHelper.disposeWhenFinished();
-            mHelper = null;
-        }
-	}
-	
 	void init(String publicKey, boolean debug, CallbackContext callbackContext)
 	{
 		mHelper = new IabHelper(this, publicKey);
@@ -122,16 +116,97 @@ public class InAppBilling extends CorddovaPlugin
         catch (IabAsyncInProgressException e)
         {
             if (callbackContext != null)
-                callbackContext.error("Failed querying inventory, async is busy.");
+                callbackContext.error("Failed querying inventory: async is busy.");
             else
                 throw e;
         }
 	}
 
 	void refresh()
-    {
-        refresh(null);
-    }
+	{
+		refresh(null);
+	}
+
+	void purchase(String productSKU, String payload, CallbackContext callbackContext)
+	{
+		this.cordova.setActivityResultCallback(this);
+		mHelper.launchPurchaseFlow(
+				cordova.getActivity(),
+				productSKU,
+				RC_REQUEST,
+				new IabHelper.OnIabPurchaseFinishedListener() {
+					public void onIabPurchaseFinished(IabResult result, Purchase purchase) {
+						if (mHelper == null)
+							return;
+						if (result.isFailure())
+						{
+							callbackContext.error("Error purchasing: " + result);
+							return;
+						}
+						callbackContext.success(purchase.getJsonObject());
+					}
+				},
+				payload
+		);
+	}
+
+	void consume(String productSKU, CallbackContext callbackContext)
+	{
+		Purchase purchase = mInventory.getPurchase(productSKU);
+
+		if (purchase == null)
+		{
+			callbackContext.error("Error consuming: product not owned.");
+			return;
+		}
+
+		try {
+			mHelper.consumeAsync(inventory.getPurchase(SKU_GAS), new IabHelper.OnConsumeFinishedListener() {
+				public void onConsumeFinished(Purchase purchase, IabResult result) {
+					if (mHelper == null)
+						return;
+					if (!result.isSuccess())
+					{
+						callbackContext.error("Error consuming: " + result);
+						return;
+					}
+					callbackContext.success();
+				}
+			});
+		} catch (IabAsyncInProgressException e) {
+			allbackContext.error("Error consuming. async is busy.");
+		}
+	}
+
+	void getPurchase(String productSKU)
+	{
+		Purchase purchase = mInventory.getPurchase(productSKU);
+
+		if (purchase == null)
+		{
+			callbackContext.error("No purchase for product: " + productSKU);
+			return;
+		}
+
+		callbackContext.success(purchase.getJsonObject());
+	}
+
+	@Override
+	public void onDestroy()
+	{
+		super.onDestroy();
+
+		if (mBroadcastReceiver != null)
+		{
+			unregisterReceiver(mBroadcastReceiver);
+		}
+
+		if (mHelper != null)
+		{
+			mHelper.disposeWhenFinished();
+			mHelper = null;
+		}
+	}
 
     @Override
     public void receivedBroadcast() {
@@ -140,14 +215,17 @@ public class InAppBilling extends CorddovaPlugin
         try {
             refresh();
         } catch (IabAsyncInProgressException e) {
-            complain("Error querying inventory. Another async operation in progress.");
+            // TODO add error message here,
         }
     }
-	
-	boolean verifyDeveloperPayload(Purchase p)
-	{
-		
-		return true;
+
+    @Override
+	public void onActivityResult(int requestCode, in resultCode, Intent data) {
+		// pass the result to the IAB helper to see if it wants it, otherwise just pass it to
+		// the super method
+		if (!mHelper.handlerActivityResult(requestCode, resultCode, data)) {
+			super.onActivityResult(requestCode, resultCode, data);
+		}
 	}
 }
 
