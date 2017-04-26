@@ -31,22 +31,24 @@ public class Purchase {
     String mDeveloperPayload;
     String mToken;
     String mOriginalJson;
+    JSONObject mJsonObject;
     String mSignature;
     boolean mIsAutoRenewing;
 
     public Purchase(String itemType, String jsonPurchaseInfo, String signature) throws JSONException {
         mItemType = itemType;
         mOriginalJson = jsonPurchaseInfo;
-        JSONObject o = new JSONObject(mOriginalJson);
-        mOrderId = o.optString("orderId");
-        mPackageName = o.optString("packageName");
-        mSku = o.optString("productId");
-        mPurchaseTime = o.optLong("purchaseTime");
-        mPurchaseState = o.optInt("purchaseState");
-        mDeveloperPayload = o.optString("developerPayload");
-        mToken = o.optString("token", o.optString("purchaseToken"));
-        mIsAutoRenewing = o.optBoolean("autoRenewing");
+        mJsonObject = new JSONObject(mOriginalJson);
+        mOrderId = mJsonObject.optString("orderId");
+        mPackageName = mJsonObject.optString("packageName");
+        mSku = mJsonObject.optString("productId");
+        mPurchaseTime = mJsonObject.optLong("purchaseTime");
+        mPurchaseState = mJsonObject.optInt("purchaseState");
+        mDeveloperPayload = mJsonObject.optString("developerPayload");
+        mToken = mJsonObject.optString("token", mJsonObject.optString("purchaseToken"));
+        mIsAutoRenewing = mJsonObject.optBoolean("autoRenewing");
         mSignature = signature;
+        mJsonObject.put("signature", signature);
     }
 
     public String getItemType() { return mItemType; }
@@ -59,6 +61,7 @@ public class Purchase {
     public String getToken() { return mToken; }
     public String getOriginalJson() { return mOriginalJson; }
     public String getSignature() { return mSignature; }
+    public JSONObject getJsonObject() { return mJsonObject; }
     public boolean isAutoRenewing() { return mIsAutoRenewing; }
 
     @Override
