@@ -658,6 +658,47 @@ public class IabHelper {
         }
     }
 
+    public Inventory safeInventoryRefresh() throws IabException {
+        return safeInventoryRefresh(null, null);
+    }
+
+    public Inventory safeInventoryRefresh(List<String> moreItemSkus,
+                                                  List<String> moreSubsSkus) throws IabException {
+        checkNotDisposed();
+        checkSetupDone("queryInventory");
+        try {
+            Inventory inv = new Inventory();
+            int r = queryPurchases(inv, ITEM_TYPE_INAPP);
+            if (r != BILLING_RESPONSE_RESULT_OK) {
+                throw new IabException(r, "Error refreshing inventory (querying owned items).");
+            }
+
+            r = querySkuDetails(ITEM_TYPE_INAPP, inv, moreItemSkus);
+            if (r != BILLING_RESPONSE_RESULT_OK)
+                logDebug("Error refreshing inventory (querying prices of items).");
+
+            // if subscriptions are supported, then also query for subscriptions
+            if (mSubscriptionsSupported) {
+                r = queryPurchases(inv, ITEM_TYPE_SUBS);
+                if (r != BILLING_RESPONSE_RESULT_OK) {
+                    throw new IabException(r, "Error refreshing inventory (querying owned subscriptions).");
+                }
+
+                r = querySkuDetails(ITEM_TYPE_SUBS, inv, moreSubsSkus);
+                if (r != BILLING_RESPONSE_RESULT_OK)
+                    logDebug("Error refreshing inventory (querying prices of subscriptions).");
+            }
+
+            return inv;
+        }
+        catch (RemoteException e) {
+            throw new IabException(IABHELPER_REMOTE_EXCEPTION, "Remote exception while refreshing inventory.", e);
+        }
+        catch (JSONException e) {
+            throw new IabException(IABHELPER_BAD_RESPONSE, "Error parsing JSON response while refreshing inventory.", e);
+        }
+    })
+
     /**
      * Listener that notifies when an inventory query operation completes.
      */
