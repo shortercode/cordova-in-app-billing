@@ -95,7 +95,7 @@ public class InAppBilling extends CorddovaPlugin
         {
             mHelper.queryInventoryAsync(new IabHelper.QueryInventoryFinishedListener() {
                 public void onQueryInventoryFinished(IabResult result, Inventory inventory) {
-                    // Have we been disposed of in the meantime? If so, quit.
+
                     if (mHelper == null)
                         return;
 
@@ -189,6 +189,14 @@ public class InAppBilling extends CorddovaPlugin
 		}
 
 		callbackContext.success(purchase.getJsonObject());
+	}
+
+	void getProductDetails(List<String> additionalSkus)
+	{
+		Int r = mHelper.querySkuDetails(ITEM_TYPE_INAPP, inv, moreItemSkus);
+		if (r != BILLING_RESPONSE_RESULT_OK) {
+			throw new IabException(r, "Error refreshing inventory (querying prices of items).");
+		}
 	}
 
 	@Override
